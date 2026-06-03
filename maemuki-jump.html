@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>前向きジャンプ</title>
+<style>
+  :root{
+    --cream:#f8f6ef;
+    --cream-d:#f1eddf;
+    --pink-bg:#fbe7e5;
+    --pink:#ff54a2;
+    --pink-d:#e23d88;
+    --pink-soft:#ffb9b7;
+    --amber:#ffd68f;
+    --amber-d:#ffb703;
+    --ink:#5a5560;
+    --ink-d:#403c46;
+    --soft:#b6a9ad;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;}
+  body{
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    background:var(--pink-bg);
+    display:flex;align-items:center;justify-content:center;
+    user-select:none;
+  }
+  #wrap{
+    position:relative;
+    width:100%;height:100%;
+    max-width:480px;max-height:860px;
+    background:linear-gradient(180deg,var(--cream) 0%,#fdf3f1 50%,var(--pink-bg) 100%);
+    overflow:hidden;
+    box-shadow:0 20px 60px rgba(90,85,96,.22);
+  }
+  canvas{display:block;width:100%;height:100%;touch-action:none;}
+
+  #hud{
+    position:absolute;top:0;left:0;right:0;
+    display:flex;justify-content:space-between;align-items:flex-start;
+    padding:14px 16px;pointer-events:none;z-index:5;
+  }
+  .pill{
+    background:rgba(255,255,255,.82);
+    backdrop-filter:blur(6px);
+    border-radius:999px;
+    padding:6px 14px;
+    color:var(--ink-d);
+    font-weight:700;
+    font-size:14px;
+    box-shadow:0 4px 14px rgba(255,84,162,.14);
+    line-height:1.3;
+  }
+  .pill small{display:block;font-size:9px;color:var(--pink);font-weight:800;letter-spacing:.08em;}
+  #scorePill{font-size:22px;}
+
+  #msg{
+    position:absolute;left:50%;top:40%;
+    transform:translate(-50%,-50%) scale(.6);
+    color:var(--pink);
+    font-size:30px;font-weight:800;
+    text-shadow:0 2px 0 #fff,0 6px 18px rgba(255,84,162,.4);
+    opacity:0;pointer-events:none;z-index:6;
+    white-space:nowrap;
+  }
+  @keyframes pop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.5) rotate(-6deg);}
+    25%{opacity:1;transform:translate(-50%,-90%) scale(1.1) rotate(2deg);}
+    100%{opacity:0;transform:translate(-50%,-160%) scale(1) rotate(0deg);}
+  }
+  #msg.show{animation:pop 1.1s ease-out forwards;}
+
+  .overlay{
+    position:absolute;inset:0;z-index:10;
+    background:linear-gradient(150deg,rgba(248,246,239,.95) 0%,rgba(253,243,241,.96) 45%,rgba(251,231,229,.97) 100%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:30px;
+    transition:opacity .35s ease;
+  }
+  .overlay.hidden{opacity:0;pointer-events:none;}
+  .badge{
+    font-size:11px;font-weight:800;letter-spacing:.18em;
+    color:var(--pink);text-transform:uppercase;margin-bottom:14px;
+  }
+  .title{font-size:46px;font-weight:800;color:var(--ink-d);line-height:1.05;margin-bottom:6px;}
+  .title .up{color:var(--pink);}
+  .sub{font-size:14px;color:var(--ink);opacity:.9;line-height:1.7;max-width:300px;margin-bottom:24px;}
+  .hero{
+    width:96px;height:96px;margin-bottom:18px;
+    filter:drop-shadow(0 10px 18px rgba(255,84,162,.22));
+    animation:float 2.4s ease-in-out infinite;
+  }
+  @keyframes float{50%{transform:translateY(-10px);}}
+  .btn{
+    background:var(--pink);color:#fff;border:none;
+    font-family:inherit;font-weight:800;font-size:18px;
+    padding:15px 42px;border-radius:999px;cursor:pointer;
+    box-shadow:0 8px 0 var(--pink-d),0 14px 24px rgba(255,84,162,.4);
+    transition:transform .08s,box-shadow .08s;
+  }
+  .btn:active{transform:translateY(5px);box-shadow:0 3px 0 var(--pink-d),0 6px 12px rgba(255,84,162,.4);}
+  .hint{margin-top:18px;font-size:12px;color:var(--soft);font-weight:700;}
+
+  .legend{display:flex;gap:14px;margin-bottom:22px;flex-wrap:wrap;justify-content:center;max-width:330px;}
+  .leg{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--ink);}
+  .dot{width:18px;height:18px;border-radius:50%;display:inline-block;box-shadow:0 2px 5px rgba(0,0,0,.12);}
+
+  .result{
+    background:rgba(255,255,255,.78);border-radius:20px;
+    padding:18px 30px;margin-bottom:22px;
+    box-shadow:0 8px 24px rgba(255,84,162,.12);
+  }
+  .result .big{font-size:52px;font-weight:800;color:var(--pink);line-height:1;}
+  .result .lbl{font-size:11px;font-weight:800;color:var(--soft);letter-spacing:.12em;}
+  .result .best{font-size:13px;color:var(--ink);margin-top:8px;font-weight:700;}
+  .quote{font-size:15px;color:var(--ink-d);font-weight:700;line-height:1.6;max-width:300px;margin-bottom:24px;}
+  .credit{
+    position:absolute;bottom:14px;left:0;right:0;
+    text-align:center;font-size:10px;color:var(--soft);
+    line-height:1.5;padding:0 20px;z-index:4;
+  }
+  .credit a{color:var(--pink);text-decoration:none;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="pill" id="scorePill"><small>こうど</small><span id="score">0</span> m</div>
+    <div class="pill"><small>さいこう</small><span id="best">0</span> m</div>
+  </div>
+
+  <div id="msg"></div>
+
+  <div class="overlay" id="startScreen">
+    <div class="badge">前向きの科学 ・ ポジティブループ</div>
+    <svg class="hero" viewBox="0 0 100 100">
+      <defs>
+        <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#ffd68f"/>
+          <stop offset="100%" stop-color="#ff8fb3"/>
+        </linearGradient>
+      </defs>
+      <circle cx="50" cy="52" r="33" fill="url(#sun)" stroke="#ff54a2" stroke-width="4"/>
+      <circle cx="38" cy="48" r="4.5" fill="#5a5560"/>
+      <circle cx="62" cy="48" r="4.5" fill="#5a5560"/>
+      <path d="M37 60 Q50 73 63 60" stroke="#5a5560" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <circle cx="30" cy="60" r="5.5" fill="#ff54a2" opacity=".4"/>
+      <circle cx="70" cy="60" r="5.5" fill="#ff54a2" opacity=".4"/>
+    </svg>
+    <h1 class="title">前向き<span class="up">ジャンプ</span></h1>
+    <p class="sub">逆境にめげず、上へ、上へ。<br>高く登るほど足場は減っていく。<br>アイテムを使ってどこまでも！</p>
+    <div class="legend">
+      <span class="leg"><span class="dot" style="background:#ffd68f"></span>小ジャンプ</span>
+      <span class="leg"><span class="dot" style="background:#ff54a2"></span>大ジャンプ</span>
+      <span class="leg"><span class="dot" style="background:linear-gradient(135deg,#ffd68f,#ff54a2)"></span>特大ジャンプ</span>
+    </div>
+    <button class="btn" id="startBtn">スタート</button>
+    <p class="hint">スマホ：左右タップ／傾ける　・　PC：← →キー</p>
+  </div>
+
+  <div class="overlay hidden" id="overScreen">
+    <div class="badge" id="overBadge">また のぼろう</div>
+    <div class="result">
+      <div class="lbl">とうたつ こうど</div>
+      <div class="big"><span id="finalScore">0</span><span style="font-size:24px"> m</span></div>
+      <div class="best" id="bestLine">さいこう記録 0 m</div>
+    </div>
+    <p class="quote" id="quote"></p>
+    <button class="btn" id="retryBtn">もういちど</button>
+  </div>
+
+  <div class="credit">
+    ムーンショット目標9「逆境の中でも前向きに生きられる社会の実現」<br>
+    コンセプトに着想を得たファンゲーム ・ <a href="https://maemuki.org/" target="_blank" rel="noopener">maemuki.org</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  const cv = document.getElementById('game');
+  const ctx = cv.getContext('2d');
+
+  let W=0, H=0, DPR=1;
+  function resize(){
+    const r = cv.getBoundingClientRect();
+    W = r.width; H = r.height;
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    cv.width = Math.round(W*DPR);
+    cv.height= Math.round(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize);
+
+  const G = 0.32;
+  const MOVE = 0.7, FRICT = 0.86, MAXVX = 7.5;
+  const JUMP_BASE   = -11.5;
+  const JUMP_SMALL  = -14;
+  const JUMP_BIG    = -19;
+  const JUMP_HUGE   = -26;
+
+  let state = 'start';
+  let player, plats, items, parts, clouds;
+  let camY, score, best, scrollMax;
+  let tilt = 0, keyDir = 0;
+
+  best = +(localStorage.getItem('maemuki_best')||0);
+  document.getElementById('best').textContent = best;
+
+  const WORDS = ['いいね！','その調子！','前向き！','ナイス！','のびのび','チャレンジ！','ポジティブ！','よくやった！','上へ！','ふんばれ！'];
+  const QUOTES = [
+    '逆境は、自ら引き受けた瞬間にチャンスへ変わる。',
+    '落ちても、また踏みしめて上を目指せばいい。',
+    'ピンチをチャンスに。前向きの循環がはじまる。',
+    '負の経験からの脱却にこそ、大きな幸福がある。',
+    'しなやかなこころは、何度でも立ち上がる。',
+    '挑戦する好奇心が、次の活力を生み出す。'
+  ];
+
+  function difficulty(){ return Math.min(scrollMax/6000, 1); }
+  function gapRange(){
+    const d = difficulty();
+    return [60 + d*55, 95 + d*95];
+  }
+  function skipChance(){ return difficulty()*0.4; }
+
+  function reset(){
+    resize();
+    player = { x:W/2, y:H-120, w:42, h:46, vx:0, vy:0, face:1 };
+    plats = []; items = []; parts = []; clouds = [];
+    camY = 0; score = 0; scrollMax = 0;
+
+    plats.push(makePlat(W/2-45, H-70, 'normal'));
+    let y = H-70;
+    while(y > -H){
+      y -= rand(60,95);
+      plats.push(makePlat(rand(0, W-90), y, 'normal'));
+    }
+    for(let i=0;i<5;i++){
+      clouds.push({x:rand(0,W), y:rand(-H,H), s:rand(.5,1.2), sp:rand(.1,.35)});
+    }
+  }
+
+  function platType(){
+    const r = Math.random();
+    const d = difficulty();
+    if(r < 0.12 + d*0.20) return 'moving';
+    if(r < 0.20 + d*0.22) return 'fragile';
+    return 'normal';
+  }
+
+  function makePlat(x,y,type){
+    const p = {
+      x, y, w:90, h:18, type,
+      dir: Math.random()<.5?-1:1,
+      sp: rand(0.8,1.8),
+      used:false, alive:true, vanish:0
+    };
+    maybeSpawnItem(p);
+    return p;
+  }
+
+  function maybeSpawnItem(p){
+    if(p.type==='fragile') return;
+    const r = Math.random();
+    let kind=null;
+    if(r < 0.06) kind='small';
+    else if(r < 0.10) kind='big';
+    else if(r < 0.115) kind='huge';
+    if(kind){
+      items.push({ x:p.x+p.w/2, y:p.y-22, r:13, kind, alive:true, t:0 });
+    }
+  }
+
+  function rand(a,b){return a+Math.random()*(b-a);}
+
+  function setupInput(){
+    addEventListener('keydown',e=>{
+      if(e.key==='ArrowLeft'){keyDir=-1;}
+      if(e.key==='ArrowRight'){keyDir=1;}
+      if((e.key===' '||e.key==='Enter')&&state!=='play'){startGame();}
+    });
+    addEventListener('keyup',e=>{
+      if(e.key==='ArrowLeft'&&keyDir<0)keyDir=0;
+      if(e.key==='ArrowRight'&&keyDir>0)keyDir=0;
+    });
+
+    function touchHandler(e){
+      if(state!=='play')return;
+      let on=false;
+      for(const t of e.touches){
+        const x = t.clientX - cv.getBoundingClientRect().left;
+        if(x < W/2){keyDir=-1;on=true;} else {keyDir=1;on=true;}
+      }
+      if(!on)keyDir=0;
+      e.preventDefault();
+    }
+    cv.addEventListener('touchstart',touchHandler,{passive:false});
+    cv.addEventListener('touchmove',touchHandler,{passive:false});
+    cv.addEventListener('touchend',e=>{if(e.touches.length===0)keyDir=0;},{passive:false});
+
+    let md=false;
+    cv.addEventListener('mousedown',e=>{
+      if(state!=='play')return; md=true;
+      const x=e.clientX-cv.getBoundingClientRect().left; keyDir=x<W/2?-1:1;
+    });
+    addEventListener('mouseup',()=>{md=false;keyDir=0;});
+    cv.addEventListener('mousemove',e=>{
+      if(!md||state!=='play')return;
+      const x=e.clientX-cv.getBoundingClientRect().left; keyDir=x<W/2?-1:1;
+    });
+
+    window.addEventListener('deviceorientation',e=>{
+      if(e.gamma!=null) tilt = Math.max(-1,Math.min(1, e.gamma/35));
+    });
+  }
+  function requestTilt(){
+    if(typeof DeviceOrientationEvent!=='undefined' &&
+       typeof DeviceOrientationEvent.requestPermission==='function'){
+      DeviceOrientationEvent.requestPermission().catch(()=>{});
+    }
+  }
+
+  const msgEl=document.getElementById('msg');
+  function popWord(text){
+    msgEl.textContent = text || WORDS[Math.floor(Math.random()*WORDS.length)];
+    msgEl.classList.remove('show'); void msgEl.offsetWidth; msgEl.classList.add('show');
+  }
+
+  function burst(x,y,color,n){
+    n=n||8;
+    for(let i=0;i<n;i++){
+      parts.push({x,y,vx:rand(-3.5,3.5),vy:rand(-5,-1),life:1,color,sz:rand(3,6)});
+    }
+  }
+
+  function startGame(){
+    reset(); state='play';
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('overScreen').classList.add('hidden');
+  }
+  function gameOver(){
+    state='over';
+    const m = Math.floor(scrollMax/10);
+    if(m>best){ best=m; localStorage.setItem('maemuki_best',best); }
+    document.getElementById('finalScore').textContent=m;
+    document.getElementById('best').textContent=best;
+    document.getElementById('bestLine').textContent='さいこう記録 '+best+' m';
+    document.getElementById('quote').textContent=QUOTES[Math.floor(Math.random()*QUOTES.length)];
+    document.getElementById('overBadge').textContent = (m>=best&&m>0) ? 'ベスト更新！' : 'また のぼろう';
+    document.getElementById('overScreen').classList.remove('hidden');
+  }
+
+  function bounce(strength,color,n){
+    player.vy = strength;
+    burst(player.x+player.w/2, player.y+player.h, color, n);
+  }
+
+  function update(){
+    if(state!=='play')return;
+
+    let input = keyDir!==0 ? keyDir : tilt;
+    player.vx += input*MOVE;
+    player.vx *= FRICT;
+    player.vx = Math.max(-MAXVX,Math.min(MAXVX,player.vx));
+    player.x += player.vx;
+    if(player.vx>0.3)player.face=1; else if(player.vx<-0.3)player.face=-1;
+
+    if(player.x < -player.w) player.x = W;
+    if(player.x > W) player.x = -player.w;
+
+    player.vy += G;
+    player.y += player.vy;
+
+    const px = player.x+player.w/2;
+    const feet = player.y+player.h;
+
+    if(player.vy>0){
+      for(const p of plats){
+        if(!p.alive)continue;
+        if(px > p.x-6 && px < p.x+p.w+6 &&
+           feet > p.y && feet < p.y+p.h+player.vy+2){
+          bounce(JUMP_BASE, '#ff8fb3', 7);
+          if(!p.used){ p.used=true; if(Math.random()<0.35)popWord(); }
+          if(p.type==='fragile') p.vanish=1;
+        }
+      }
+    }
+
+    for(const it of items){
+      if(!it.alive)continue;
+      const dx=px-it.x, dy=(player.y+player.h/2)-it.y;
+      if(dx*dx+dy*dy < (it.r+18)*(it.r+18)){
+        it.alive=false;
+        if(it.kind==='small'){ bounce(JUMP_SMALL,'#ffd68f',10); popWord('小ジャンプ！'); }
+        if(it.kind==='big'){ bounce(JUMP_BIG,'#ff54a2',16); popWord('大ジャンプ！'); }
+        if(it.kind==='huge'){ bounce(JUMP_HUGE,'#ff54a2',26); popWord('特大ジャンプ！！'); }
+      }
+    }
+
+    for(const p of plats){
+      if(p.type==='moving'&&p.alive){
+        p.x += p.dir*p.sp;
+        if(p.x<0){p.x=0;p.dir=1;}
+        if(p.x>W-p.w){p.x=W-p.w;p.dir=-1;}
+      }
+      if(p.vanish>0){ p.vanish+=0.08; if(p.vanish>1.4)p.alive=false; }
+    }
+
+    const threshold=H*0.42;
+    if(player.y < threshold){
+      const dy = threshold - player.y;
+      player.y = threshold;
+      camY += dy;
+      scrollMax = Math.max(scrollMax, camY);
+      for(const p of plats) p.y += dy;
+      for(const it of items) it.y += dy;
+      for(const c of clouds) c.y += dy*c.sp;
+      for(const pt of parts) pt.y += dy;
+    }
+    score = Math.floor(scrollMax/10);
+    document.getElementById('score').textContent=score;
+
+    plats = plats.filter(p=>p.y < H+30);
+    items = items.filter(it=>it.alive && it.y < H+30);
+
+    let topY = plats.length ? Math.min(...plats.map(p=>p.y)) : H;
+    const gr = gapRange();
+    while(topY > -50){
+      topY -= rand(gr[0],gr[1]);
+      if(Math.random() < skipChance()){ continue; }
+      plats.push(makePlat(rand(0,W-90), topY, platType()));
+    }
+
+    for(const c of clouds){ if(c.y>H+60){c.y=-60;c.x=rand(0,W);} }
+
+    parts = parts.filter(p=>p.life>0);
+    for(const p of parts){ p.x+=p.vx; p.y+=p.vy; p.vy+=0.2; p.life-=0.04; }
+
+    if(player.y > H+40) gameOver();
+  }
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawCloud(c){
+    ctx.save();
+    ctx.globalAlpha=0.6;
+    ctx.fillStyle='#ffffff';
+    const s=c.s*22;
+    ctx.beginPath();
+    ctx.arc(c.x,c.y,s,0,7);
+    ctx.arc(c.x+s*0.9,c.y+5,s*0.8,0,7);
+    ctx.arc(c.x-s*0.9,c.y+6,s*0.7,0,7);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPlat(p){
+    let alpha=1;
+    if(p.vanish>0) alpha=Math.max(0,1-(p.vanish-1)/0.4);
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    let col,top;
+    if(p.type==='moving'){col='#e23d88';top='#ff7ab0';}
+    else if(p.type==='fragile'){col='#d9c2a0';top='#efe0c4';}
+    else {col='#ff9ec7';top='#ffc2dd';}
+    ctx.fillStyle='rgba(90,85,96,.10)';
+    roundRect(p.x+2,p.y+4,p.w,p.h,9); ctx.fill();
+    ctx.fillStyle=col;
+    roundRect(p.x,p.y,p.w,p.h,9); ctx.fill();
+    ctx.fillStyle=top;
+    roundRect(p.x,p.y,p.w,p.h*0.55,9); ctx.fill();
+    ctx.restore();
+  }
+
+  function arrow(x,y,color,s){
+    ctx.fillStyle=color;
+    ctx.beginPath();
+    ctx.moveTo(x,y-5*s);
+    ctx.lineTo(x+4*s,y);
+    ctx.lineTo(x-4*s,y);
+    ctx.closePath();ctx.fill();
+  }
+  function star(cx,cy,outer,inner,points){
+    ctx.beginPath();
+    for(let i=0;i<points*2;i++){
+      const ang = (Math.PI/points)*i - Math.PI/2;
+      const rad = i%2===0 ? outer : inner;
+      const x=cx+Math.cos(ang)*rad, y=cy+Math.sin(ang)*rad;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.closePath();
+  }
+
+  function drawItem(it){
+    it.t += 0.08;
+    const bob = Math.sin(it.t)*3;
+    const x=it.x, y=it.y+bob, r=it.r;
+    ctx.save();
+    ctx.globalAlpha=0.25;
+    ctx.fillStyle = it.kind==='small' ? '#ffd68f' : '#ff54a2';
+    ctx.beginPath();ctx.arc(x,y,r+7+Math.sin(it.t*2)*2,0,7);ctx.fill();
+    ctx.globalAlpha=1;
+
+    if(it.kind==='small'){
+      ctx.fillStyle='#ffd68f';
+      ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+      ctx.strokeStyle='#ffb703';ctx.lineWidth=3;ctx.stroke();
+      arrow(x,y,'#fff',1);
+    } else if(it.kind==='big'){
+      ctx.fillStyle='#ff54a2';
+      ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+      ctx.strokeStyle='#e23d88';ctx.lineWidth=3;ctx.stroke();
+      arrow(x,y-3,'#fff',1); arrow(x,y+4,'#fff',1);
+    } else {
+      const g=ctx.createLinearGradient(x,y-r,x,y+r);
+      g.addColorStop(0,'#ffd68f'); g.addColorStop(1,'#ff54a2');
+      ctx.fillStyle=g;
+      star(x,y,r+2,r*0.5,5);
+      ctx.fill();
+      ctx.strokeStyle='#e23d88';ctx.lineWidth=2.5;ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawPlayer(){
+    const x=player.x,y=player.y,w=player.w,h=player.h;
+    const cx=x+w/2, cy=y+h/2;
+    ctx.save();
+    ctx.fillStyle='rgba(90,85,96,.10)';
+    ctx.beginPath();ctx.ellipse(cx,y+h+6,w*0.4,5,0,0,7);ctx.fill();
+    const g=ctx.createLinearGradient(cx,cy-w*0.5,cx,cy+w*0.5);
+    g.addColorStop(0,'#ffd68f'); g.addColorStop(1,'#ff8fb3');
+    ctx.fillStyle=g;
+    ctx.beginPath();ctx.arc(cx,cy,w*0.5,0,7);ctx.fill();
+    ctx.strokeStyle='#ff54a2';ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle='rgba(255,84,162,.4)';
+    ctx.beginPath();ctx.arc(cx-w*0.28,cy+4,4,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(cx+w*0.28,cy+4,4,0,7);ctx.fill();
+    ctx.fillStyle='#5a5560';
+    const eo=player.face*2;
+    ctx.beginPath();ctx.arc(cx-7+eo,cy-3,3.4,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(cx+7+eo,cy-3,3.4,0,7);ctx.fill();
+    ctx.strokeStyle='#5a5560';ctx.lineWidth=3;ctx.lineCap='round';
+    ctx.beginPath();
+    if(player.vy<0) ctx.arc(cx,cy+3,7,0.15*Math.PI,0.85*Math.PI);
+    else ctx.arc(cx,cy+6,6,0.15*Math.PI,0.85*Math.PI);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    for(const c of clouds) drawCloud(c);
+    for(const p of plats) if(p.alive) drawPlat(p);
+    for(const it of items) if(it.alive) drawItem(it);
+    for(const pt of parts){
+      ctx.globalAlpha=Math.max(0,pt.life);
+      ctx.fillStyle=pt.color;
+      ctx.beginPath();ctx.arc(pt.x,pt.y,pt.sz,0,7);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    if(state==='play') drawPlayer();
+  }
+
+  function loop(){ update(); draw(); requestAnimationFrame(loop); }
+
+  document.getElementById('startBtn').addEventListener('click',()=>{requestTilt();startGame();});
+  document.getElementById('retryBtn').addEventListener('click',startGame);
+
+  setupInput();
+  resize();
+  reset();
+  state='start';
+  loop();
+})();
+</script>
+</body>
+</html>
